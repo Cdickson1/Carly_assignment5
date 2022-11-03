@@ -1,0 +1,145 @@
+---
+title: "Assignment 5"
+output: html_notebook
+---
+
+#Preliminaries(1)
+```{r}
+install.packages("rstatix", dependencies = TRUE)
+library(tidyverse)
+library(ggthemes)
+library(rstatix)
+library(ggpubr)
+
+assignment5 = read_csv("assignment5_data.csv")
+```
+
+
+#Subject-level means(2)
+```{r}
+subject_accuracy = assignment5 %>% group_by(subject, prime_condition) %>% summarise(mean_acc = mean(accuracy))
+
+subject_rt = assignment5 %>% group_by(subject, prime_condition) %>% summarise(mean_rt = mean(response_RT))
+```
+
+#Format of the data(3)
+Both subject_accuracy and subject_rt are currently in long format.
+
+#Long to Wide Conversion(4)
+```{r}
+subject_accuracy_wide = subject_accuracy %>% pivot_wider(names_from = c(prime_condition), values_from=mean_acc)
+```
+
+#Wide to Long Conversion(5)
+```{r}
+subject_accuracy_long = subject_accuracy_wide %>%  pivot_longer(names_to = "prime_condition", cols = both:unrelated) %>% rename(mean_acc = value)
+```
+
+#Interpretation(6)
+subject_accuracy_long contains the same information as the original subject_accuracy dataframe.
+
+#t-test in R
+```{r}
+t.test(subject_accuracy_wide$phonological, subject_accuracy_wide$semantic, var.equal = FALSE, paired = TRUE)
+
+```
+
+#t-test interpretation(8)
+The t-test shows a p-value that is less than alpha. Based on this, there is a significant difference in the mean accuracy of subjects between the phonological and semantic prime conditions.
+
+#t-test manual(9)
+```{r}
+subject_accuracy_wide = subject_accuracy_wide %>% mutate(diff = phonological - semantic)
+
+x_bar = mean(subject_accuracy_wide$diff)
+s_diff = sd(subject_accuracy_wide$diff)
+n = nrow(subject_accuracy_wide)
+df = n-1
+
+t_denominator = s_diff/sqrt(n)
+t = x_bar/t_denominator
+
+p_value = 2*(1-pt(t,df))
+
+```
+
+#t-test outliers(10)
+```{r}
+subject_accuracy_wide = subject_accuracy_wide %>% ungroup()
+hist(subject_accuracy_wide$diff)
+
+outliers = subject_accuracy_wide %>% identify_outliers(diff)
+#there is one outlier in the data (subject 97)
+
+outlier_subs = outliers %>% pull(subject)
+newdf = subject_accuracy_wide %>% filter(!subject%in% outlier_subs)
+
+```
+
+#t-test normality(11)
+```{r}
+ggqqplot (subject_accuracy_wide, "diff")
+
+subject_accuracy_wide %>% shapiro_test (diff)
+
+#The data does not differ significantly from a normal distribution based on the p-value of the Shapiro-Wilk test. Additionally, the QQ-plot shows a mostly linear pattern in the difference distribution, indicating that the normality assumption is satisfied.
+```
+
+#Overall pattern interpretation(12)
+The test of assumptions does not change my conclusions about the validity of the t-test. Althought there was one outlier, this outlier was not extreme. Additionally, the differences appear to be normally distributed. Based on these assumptions being satisfied, we can conclude that there was an effect of prime condition on accuracy of response. In general, phonologically related cues enhance accuracy of response retrieval compared to semantically related cues. 
+
+#Plot RTs(13)
+```{r}
+mean_rt = assignment5 %>% group_by (prime_condition) %>% summarise(mean_rt = mean(response_RT))
+
+mean_rt %>% 
+  ggplot(aes(x = prime_condition, y = mean_rt)) +
+  geom_col() +
+  theme_few() +
+  xlab ("prime condition") +
+  ylab("response RT") +
+  ggtitle("Response RT in each prime condition")
+  
+#Based on this plot, we can infer that there was an effect of prime condition on reaction time. The semantic prime produced the slowest responses while having both primes produced the fastest responses.
+```
+
+
+EXTRA CREDIT
+
+#t-test for RTs(14)
+```{r}
+#convert to wide format
+subject_rt_wide = subject_rt %>% pivot_wider(names_from = c(prime_condition), values_from=mean_rt)
+
+#calculate difference scores
+subject_rt_wide = subject_rt_wide %>% mutate(diff = both - semantic)
+
+#look for outliers
+subject_rt_wide = subject_rt_wide %>% ungroup()
+outliers_rt = subject_rt_wide %>% identify_outliers(diff)
+#there are no outliers so this assumption is satisfied
+
+#check for normality
+ggqqplot (subject_rt_wide, "diff")
+subject_rt_wide %>% shapiro_test (diff)
+#the satisfies the normality assumption
+
+#conduct a t-test
+t.test(subject_rt_wide$phonological, subject_accuracy_wide$semantic, var.equal = FALSE, paired = TRUE)
+
+#since our p-value is less than the designated alpha, we can conclude that there is a significant difference between response times with the semantic prime and response times with both primes. On average, participants responded significantly faster on trials with both primes than they did on trials with a semantic prime.
+```
+
+#Regression line plot for RTs(15)
+```{r}
+
+assignment5 %>% ggplot(aes(x = distance, y = response_RT, color = prime_condition)) +
+  geom_smooth (method = "lm") +theme_few()
+
+#Based on this plot, it appears that for all prime conditions, reaction time gets slower as distance increases. The intersection of lines on the graph indicates an interaction between prime condition and distance. Although all groups show this increase in reaction time, this effect appears to be the greatest for phonological and semantic primes and the least the condition with primes that are both semantically and phonologically related. Although having both primes is the slowest when the distance is lowest, it is the fastest condition when distance is greatest.   Based on the values in the distance column, I think distance represents the amount of change needed in the letters of the prime word to achieve the target word. 
+```
+
+
+
+```
+
